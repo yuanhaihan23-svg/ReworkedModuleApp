@@ -1,0 +1,19 @@
+# ---- GUI ----
+PyQt6==6.10.0
+PyQt6-Qt6==6.10.0
+PyQt6_sip==13.10.2
+
+# ---- 数据处理 ----
+pandas==2.2.3
+openpyxl==3.1.5
+numpy==2.1.0
+
+# ---- 数据库相关 ----
+PyMySQL==1.1.2
+SQLAlchemy==2.0.44
+mysql-connector==2.2.9
+cryptography==46.0.3
+pycparser==2.23
+
+# ---- Python 标准库（无需安装） ----
+# sqlite3, os, sys, re, datetime 等为内置模块，无需写入 requirements.txt
