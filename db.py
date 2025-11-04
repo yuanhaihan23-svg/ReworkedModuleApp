@@ -1,11 +1,10 @@
 import importlib
 import sqlite3
 import pymysql
-from config import SCHEMA_FIELDS
 import configparser
 import sys, os
-import shutil
 import tempfile
+
 # ---------- 子表字段配置 ----------
 SCHEMA_FIELDS = {
     "table_1_data": [
@@ -42,13 +41,47 @@ SCHEMA_FIELDS = {
 }
 
 
+# ---------- 路径工具 ----------
 def resource_path(relative_path: str):
-    """兼容本地与 PyInstaller 打包"""
-    try:
+    """
+    获取资源文件路径，兼容：
+    ✅ 本地运行
+    ✅ PyInstaller 打包环境（_MEIPASS）
+    ✅ EXE 同目录
+    """
+    # 打包运行环境
+    if hasattr(sys, "_MEIPASS"):
         base_path = sys._MEIPASS
-    except AttributeError:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+    else:
+        # 如果是 exe 运行，则以 exe 所在目录为准
+        if getattr(sys, 'frozen', False):
+            base_path = os.path.dirname(sys.executable)
+        else:
+            base_path = os.path.abspath(".")
+
+    path = os.path.join(base_path, relative_path)
+
+    # 最后兜底：若不存在 config.ini，则在 exe 同目录下创建
+    if not os.path.exists(path) and relative_path.lower().endswith(".ini"):
+        print(f"⚠️ 配置文件 {relative_path} 未找到，已自动生成默认配置。")
+        config = configparser.ConfigParser()
+        config["database"] = {"use_mysql": "False"}
+        config["sqlite"] = {"path": "MyApp.db"}
+        config["mysql"] = {
+            "host": "localhost",
+            "port": "3306",
+            "user": "root",
+            "password": "",
+            "database": "mydb",
+            "charset": "utf8mb4"
+        }
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                config.write(f)
+            print(f"✅ 默认配置文件已生成：{path}")
+        except Exception as e:
+            print(f"⚠️ 创建配置文件失败：{e}")
+    return path
 
 
 class DB:
@@ -56,35 +89,44 @@ class DB:
     def __init__(self):
         self.conn = None
         self.backend = None
-        print("🚀 初始化数据库连接...")
+        print("🚀 初始化数据库连接中...")
         self.config = self._load_config()
 
+        # 检查 cryptography
         if self.config["use_mysql"] and not importlib.util.find_spec("cryptography"):
             print("⚠️ 缺少 cryptography 库，可能导致 MySQL 登录失败。请运行：pip install cryptography")
 
+        # 根据配置连接数据库
         if self.config["use_mysql"]:
             self._connect_mysql()
         else:
             self._connect_sqlite()
+
+        # 初始化表
         self._ensure_tables()
 
+    # ---------- 加载配置 ----------
     def _load_config(self):
         config = configparser.ConfigParser()
         config_path = resource_path("config.ini")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"❌ 配置文件未找到: {config_path}")
-        config.read(config_path, encoding="utf-8")
 
-        use_mysql = config.getboolean("database", "use_mysql")
+        # 若存在则读取
+        if os.path.exists(config_path):
+            config.read(config_path, encoding="utf-8")
+
+        # 否则使用默认值
+        use_mysql = config.getboolean("database", "use_mysql", fallback=False)
         mysql_config = {
-            "host": config.get("mysql", "host"),
-            "port": config.getint("mysql", "port"),
-            "user": config.get("mysql", "user"),
-            "password": config.get("mysql", "password"),
-            "database": config.get("mysql", "database"),
-            "charset": config.get("mysql", "charset"),
+            "host": config.get("mysql", "host", fallback="localhost"),
+            "port": config.getint("mysql", "port", fallback=3306),
+            "user": config.get("mysql", "user", fallback="root"),
+            "password": config.get("mysql", "password", fallback=""),
+            "database": config.get("mysql", "database", fallback="mydb"),
+            "charset": config.get("mysql", "charset", fallback="utf8mb4"),
         }
-        sqlite_config = {"path": config.get("sqlite", "path")}
+        sqlite_config = {"path": config.get("sqlite", "path", fallback="MyApp.db")}
+
+        print(f"✅ 已加载配置文件：{config_path}")
         return {"use_mysql": use_mysql, "mysql": mysql_config, "sqlite": sqlite_config}
 
     # ---------- MySQL ----------
@@ -102,18 +144,19 @@ class DB:
     def _connect_sqlite(self):
         sqlite_path = self.config["sqlite"]["path"]
 
-        # 打包环境下，从资源复制到临时目录
+        # ✅ 打包后，写入临时目录避免权限问题
         if getattr(sys, "_MEIPASS", None):
             tmp_dir = tempfile.gettempdir()
-            sqlite_tmp_path = os.path.join(tmp_dir, "MyApp.db")
+            sqlite_tmp_path = os.path.join(tmp_dir, os.path.basename(sqlite_path))
             if not os.path.exists(sqlite_tmp_path):
-                shutil.copy(resource_path(sqlite_path), sqlite_tmp_path)
+                open(sqlite_tmp_path, "a").close()
             sqlite_path = sqlite_tmp_path
 
         self.conn = sqlite3.connect(sqlite_path, check_same_thread=False)
         self.backend = "sqlite"
+        print(f"✅ 已连接 SQLite 数据库：{sqlite_path}")
 
-    # ---------- 执行 SQL ----------
+    # ---------- SQL 操作 ----------
     def _execute(self, sql, params=None):
         cur = self.conn.cursor()
         cur.execute(sql, params or ())
@@ -147,7 +190,7 @@ class DB:
             """
         self._execute(create_master)
 
-        # 动态生成子表
+        # 创建子表
         for tbl, fields in SCHEMA_FIELDS.items():
             if self.backend == "mysql":
                 cols = ["id INT AUTO_INCREMENT PRIMARY KEY", "barcode VARCHAR(255)"]
@@ -161,7 +204,7 @@ class DB:
                 sql = f"CREATE TABLE IF NOT EXISTS {tbl} ({', '.join(cols)});"
             self._execute(sql)
 
-            # 🔧 自动补齐缺失列（SQLite）
+            # 自动补列
             if self.backend == "sqlite":
                 cur = self._execute(f"PRAGMA table_info({tbl});")
                 existing = [r[1] for r in cur.fetchall()]
@@ -173,7 +216,7 @@ class DB:
         self._commit()
         print("🧱 数据表检查/创建完成")
 
-    # ---------- 常用操作 ----------
+    # ---------- 业务方法 ----------
     def ensure_barcode(self, barcode):
         sql = "INSERT OR IGNORE INTO barcode_master (barcode) VALUES (?);" if self.backend == "sqlite" \
             else "INSERT IGNORE INTO barcode_master (barcode) VALUES (%s);"
@@ -208,9 +251,12 @@ class DB:
     def insert_table(self, table, barcode, data):
         fields = list(data.keys())
         values = list(data.values())
-        ph = ", ".join(["?"] * len(values)) if self.backend == "sqlite" else ", ".join(["%s"] * len(values))
-        sql = f"INSERT INTO {table} (barcode, {', '.join(fields)}) VALUES (?, {ph});" if self.backend == "sqlite" \
-            else f"INSERT INTO {table} (barcode, {', '.join(fields)}) VALUES (%s, {ph});"
+        if self.backend == "sqlite":
+            ph = ", ".join(["?"] * len(values))
+            sql = f"INSERT INTO {table} (barcode, {', '.join(fields)}) VALUES (?, {ph});"
+        else:
+            ph = ", ".join(["%s"] * len(values))
+            sql = f"INSERT INTO {table} (barcode, {', '.join(fields)}) VALUES (%s, {ph});"
         self._execute(sql, tuple([barcode] + values))
         self._commit()
 
