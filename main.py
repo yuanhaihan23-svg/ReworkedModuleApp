@@ -4,7 +4,7 @@ import tempfile
 import atexit
 from pathlib import Path
 from configparser import ConfigParser
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 from gui import BarcodeApp  # 你的 GUI
 from db import DB
 
@@ -55,19 +55,30 @@ def load_config():
 # -------------------------------
 # 主程序入口
 # -------------------------------
-
 def main():
     try:
         app = QApplication(sys.argv)  # 先创建 QApplication
-        db = DB()  # 再初始化数据库
+        check_single_instance()
 
+        # 初始化数据库
+        db = DB()
+
+        # 数据库未连接时弹窗提示并退出
+        if not db.is_connected():
+            QMessageBox.critical(
+                None,
+                "数据库连接失败",
+                "❌ 无法连接到数据库，请检查网络或 config.ini 配置",
+            )
+            sys.exit(1)
+
+        # 数据库连接成功，启动 GUI
         win = BarcodeApp(db=db)
         win.show()
-
         sys.exit(app.exec())
+
     except Exception as e:
-        # 在 EXE 环境下用 QMessageBox 弹出异常
-        from PyQt6.QtWidgets import QMessageBox
+        # 捕获其它异常并弹窗
         import traceback
 
         msg = QMessageBox()
