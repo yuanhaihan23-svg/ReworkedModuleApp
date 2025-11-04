@@ -19,20 +19,19 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Clean previous builds
+        run: |
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Clean previous builds
-        run: |
-          rmdir /s /q build || echo "No build folder"
-          rmdir /s /q dist || echo "No dist folder"
-
       - name: Build executable
         run: |
-          pyinstaller --clean --onefile --windowed --name MyApp --add-data "config.ini;." main.py
+          pyinstaller --onefile --windowed --name MyApp main.py
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
