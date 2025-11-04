@@ -62,7 +62,7 @@ def resource_path(relative_path: str):
             "port": "3306",
             "user": "remoteuser",
             "password": "password123456",
-            "database": "rework_module_status",
+            "database": "rework module status",
             "charset": "utf8mb4"
         }
         try:

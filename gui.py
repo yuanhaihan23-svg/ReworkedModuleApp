@@ -399,27 +399,22 @@ class BarcodeApp(QWidget):
                 reverse=True
             )
 
-            for barcode in sorted(self.session_barcodes):
-                # 检查三个分表数据
-                t1_data = self.db.fetch_table("table_1_data", barcode)
-                t2_data = self.db.fetch_table("table_2_data", barcode)
-                t3_data = self.db.fetch_table("table_3_data", barcode)
+            for barcode in barcodes_sorted:
+                # 获取三个子表数据
+                t1_data = self.db.fetch_table("table_1_data", barcode) or {}
+                t2_data = self.db.fetch_table("table_2_data", barcode) or {}
+                t3_data = self.db.fetch_table("table_3_data", barcode) or {}
 
+                # 判断子表是否存在数据
                 s1 = 1 if t1_data else 0
                 s2 = 1 if t2_data else 0
                 s3 = 1 if t3_data else 0
 
-                # 计算总状态：
-                # 如果三个表都完成，并且所有字段均为 OK → OK
-                # 否则，如果有 NG → NG
-                # 否则 → 未完成
+                # 计算总状态
                 total_status = "未完成"
                 if s1 and s2 and s3:
-                    all_vals = []
-                    for data in (t1_data, t2_data, t3_data):
-                        if data:
-                            all_vals.extend(list(data.values()))
-                    if any(str(v).upper() == "NG" for v in all_vals):
+                    all_vals = list(t1_data.values()) + list(t2_data.values()) + list(t3_data.values())
+                    if any(str(v).strip().upper() == "NG" for v in all_vals):
                         total_status = "NG"
                     else:
                         total_status = "OK"
@@ -457,7 +452,6 @@ class BarcodeApp(QWidget):
                 self.overview_table.setItem(row, 4, total_item)
 
             self._apply_table_adjustments()
-
         except Exception as e:
             QMessageBox.critical(self, "刷新失败", f"加载 Overview 时出错：\n{str(e)}")
 

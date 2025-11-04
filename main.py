@@ -39,9 +39,8 @@ def check_single_instance():
 # -------------------------------
 # 资源路径工具函数
 # -------------------------------
-def resource_path(relative_path: str):
-    """让程序在 PyInstaller 打包后也能找到资源文件"""
-    base_path = getattr(sys, "_MEIPASS", Path(__file__).parent)
+def resource_path(relative_path):
+    base_path = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
     return os.path.join(base_path, relative_path)
 
 # -------------------------------
@@ -57,12 +56,28 @@ def load_config():
 # 主程序入口
 # -------------------------------
 
-
 def main():
-    db = DB()  # 自动读取 app 文件夹下 config.ini
-    app = QApplication(sys.argv)
-    win = BarcodeApp(db=db)  # GUI 内使用 db 实例
-    win.show()
-    sys.exit(app.exec())
+    try:
+        app = QApplication(sys.argv)  # 先创建 QApplication
+        db = DB()  # 再初始化数据库
+
+        win = BarcodeApp(db=db)
+        win.show()
+
+        sys.exit(app.exec())
+    except Exception as e:
+        # 在 EXE 环境下用 QMessageBox 弹出异常
+        from PyQt6.QtWidgets import QMessageBox
+        import traceback
+
+        msg = QMessageBox()
+        msg.setWindowTitle("程序异常")
+        msg.setText("程序发生错误:\n" + str(e))
+        msg.setDetailedText(traceback.format_exc())
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.exec()
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
