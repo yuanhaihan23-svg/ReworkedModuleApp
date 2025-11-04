@@ -221,6 +221,29 @@ class DB:
         row = cur.fetchone()
         return dict(zip(fields, row)) if row else {}
 
+    def fetch_overview(self):
+        cur = self._execute("SELECT barcode FROM barcode_master;")
+        if cur is None:
+            return []  # 数据库未连接或 SQL 执行失败，直接返回空列表
+
+        barcodes = [r[0] for r in cur.fetchall()]
+        result = []
+        for bc in barcodes:
+            s1, s2, s3 = self.get_status(bc)
+            total = self._calc_total_status(bc, s1, s2, s3)
+            result.append((bc, s1, s2, s3, total))
+        return result  # 记得返回 result
+
+    def _calc_total_status(self, barcode, s1, s2, s3):
+        if not all([s1, s2, s3]):
+            return "未完成"
+        for tbl in SCHEMA_FIELDS:
+            data = self.fetch_table(tbl, barcode)
+            for v in data.values():
+                if str(v).strip().upper() == "NG":
+                    return "NG"
+        return "OK"
+
     def close(self):
         if self.conn:
             self.conn.close()

@@ -15,9 +15,9 @@ from config import SCHEMA_FIELDS
 # GUI CLASS
 # ----------------------------
 class BarcodeApp(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.db = DB()
+    def __init__(self, db=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.db = db
         self.current_barcode = None
         self.current_table = None
         self.session_barcodes = set()  # 本次运行的条码集合
