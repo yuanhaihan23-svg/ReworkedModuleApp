@@ -226,3 +226,11 @@ class DB:
             self.conn.close()
             self.connected = False
             print("🔌 数据库连接已关闭。")
+
+    def fetch_quality_personnel_history(self):
+        personnel = set()
+        for tbl in ["table_1_data", "table_2_data", "table_3_data"]:
+            cur = self._execute(f"SELECT DISTINCT quality_personnel FROM {tbl} WHERE quality_personnel IS NOT NULL;")
+            rows = cur.fetchall()
+            personnel.update([row[0] for row in rows if row[0]])
+        return list(personnel)
