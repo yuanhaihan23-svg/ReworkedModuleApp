@@ -555,6 +555,7 @@ class BarcodeApp(QWidget):
                 "timestamp": "时间",
                 "quality_personnel": "品质人员-Quality",
                 "protective_cover_installation_status": "正负极保护盖已安装-Positive and negative protective covers installed",
+                "foreign_matters_status": "模组上保护盖无破损、无脏污-No damage or foreign matters on the module top cover",
                 "protective_cover_appearance_status": "正负极连接铜排无破损，无异物-No damage or foreign matters on the positive and negative copper bar",
                 "FPC_appearance_status": "FPC/卡扣无破损无脏污-No damage or foreign matters on FPC or buckles ",
                 "FPC_foreign_matters_status": "FPC插接口无破损无脏污-No damage or foreign matters on FPC plug",
