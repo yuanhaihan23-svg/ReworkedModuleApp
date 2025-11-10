@@ -31,10 +31,12 @@ SCHEMA_FIELDS = {
     "table_3_data": [
         ("timestamp", "TEXT"),
         ("quality_personnel", "TEXT"),
+        ("sampling_data_status","TEXT"),
         ("voltage_status_consistent", "TEXT"),
         ("cell_batch_consistent", "TEXT"),
         ("module_grade_consistent", "TEXT"),
         ("module_unbound_status", "TEXT"),
+        ("module_appearance_status", "TEXT")
     ],
 }
 
