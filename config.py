@@ -14,8 +14,7 @@ SCHEMA_FIELDS = {
         ("bottom_glue_clean_status", "TEXT"),
         ("module_bottom_picture", "TEXT"),
         ("tray_foam_status", "TEXT"),
-        ("module_code_status", "TEXT"),
-        ("module_hi_pot_test_status", "TEXT")
+        ("module_code_status", "TEXT")
     ],
     "table_2_data": [
         ("timestamp", "TEXT"),
@@ -25,9 +24,11 @@ SCHEMA_FIELDS = {
     "table_3_data": [
         ("timestamp", "TEXT"),
         ("quality_personnel", "TEXT"),
+        ("sampling_data_status","TEXT"),
         ("voltage_status_consistent", "TEXT"),
         ("cell_batch_consistent", "TEXT"),
         ("module_grade_consistent", "TEXT"),
-        ("module_unbound_status", "TEXT")
+        ("module_unbound_status", "TEXT"),
+        ("module_appearance_status","TEXT")
     ]
 }

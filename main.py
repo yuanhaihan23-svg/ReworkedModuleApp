@@ -2,7 +2,6 @@ import sys
 import os
 import tempfile
 import atexit
-from pathlib import Path
 from configparser import ConfigParser
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from gui import BarcodeApp  # 你的 GUI

@@ -21,8 +21,7 @@ SCHEMA_FIELDS = {
         ("bottom_glue_clean_status", "TEXT"),
         ("module_bottom_picture", "TEXT"),
         ("tray_foam_status", "TEXT"),
-        ("module_code_status", "TEXT"),
-        ("module_hi_pot_test_status", "TEXT"),
+        ("module_code_status", "TEXT")
     ],
     "table_2_data": [
         ("timestamp", "TEXT"),

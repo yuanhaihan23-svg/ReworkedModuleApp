@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QBrush
 from openpyxl.styles import PatternFill
-from db import DB
 from config import SCHEMA_FIELDS
 
 # ----------------------------
@@ -566,8 +565,7 @@ class BarcodeApp(QWidget):
                 "bottom_glue_clean_status": "模组底部残胶无残留-No residue glue on module bottom",
                 "module_bottom_picture": "模组底部照片-Module bottom pictures",
                 "tray_foam_status": "托盘及缓冲泡棉无异物-No foreign matters on tray and cushion foam",
-                "module_code_status": "模组码无破损脏污-No damage or dirty on module code",
-                "module_hi_pot_test_status": "模组耐压数据-Module hi-pot test"
+                "module_code_status": "模组码无破损脏污-No damage or dirty on module code"
             },
             "table_2_data": {
                 "timestamp": "时间",
@@ -578,10 +576,12 @@ class BarcodeApp(QWidget):
                 "module_CMMtest_status": "模组全尺寸测量-Module CMM test",
                 "timestamp": "时间",
                 "quality_personnel": "品质人员-Quality",
+                "sampling_data_status":"采样数据状态-Sampling data status",
                 "voltage_status_consistent": "模组电压区间/充电未充电一致-Module voltage range/distinction between charging and uncharging",
                 "cell_batch_consistent": "电芯批次一致-Cell batch consistency",
                 "module_grade_consistent": "模组档位一致-Module grade consistency",
-                "module_unbound_status": "模组已解绑-Module already unbounded"
+                "module_unbound_status": "模组已解绑-Module already unbounded",
+                "module_appearance_status":"模组外观状态-Module appearance status"
             }
         }
         return labels.get(tbl, {}).get(field, field)
