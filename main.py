@@ -4,6 +4,9 @@ import tempfile
 import atexit
 from configparser import ConfigParser
 from PyQt6.QtWidgets import QApplication, QMessageBox
+from macholib.ptypes import p_int
+import configparser
+
 from gui import BarcodeApp  # 你的 GUI
 from db import DB
 
@@ -39,17 +42,42 @@ def check_single_instance():
 # 资源路径工具函数
 # -------------------------------
 def resource_path(relative_path):
-    base_path = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    if getattr(sys, "frozen", False):  # PyInstaller 打包
+        base_path = sys._MEIPASS
+    else:  # 本地运行
+        base_path = os.path.abspath(os.path.dirname(__file__))
     return os.path.join(base_path, relative_path)
+
 
 # -------------------------------
 # 读取数据库配置
 # -------------------------------
 def load_config():
+    config = configparser.ConfigParser()
     config_file = resource_path("config.ini")
-    config = ConfigParser()
     config.read(config_file, encoding="utf-8")
     return config
+
+# -------------------------------
+# 读取品质人员白名单
+# -------------------------------
+def load_whitelist():
+    """
+    从 config.ini 的 [auth] 节读取 whitelist。
+    返回一个 set，所有元素都是字符串。
+    """
+    config = load_config()
+    wl_str = config.get("auth", "whitelist", fallback=None)
+
+    if wl_str is None:
+        print("⚠️ 未找到 [auth] whitelist 配置，返回空集合")
+        return set()
+
+    whitelist = {item.strip() for item in wl_str.split(",") if item.strip()}
+    return whitelist
+
+
+
 
 # -------------------------------
 # 主程序入口
@@ -70,9 +98,9 @@ def main():
                 "❌ 无法连接到数据库，请检查网络或 config.ini 配置",
             )
             sys.exit(1)
-
+        whitelist = load_whitelist()
         # 数据库连接成功，启动 GUI
-        win = BarcodeApp(db=db)
+        win = BarcodeApp(db=db, whitelist=whitelist)
         win.show()
         sys.exit(app.exec())
 
@@ -91,3 +119,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

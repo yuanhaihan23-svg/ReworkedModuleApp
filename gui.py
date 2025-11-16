@@ -14,12 +14,13 @@ from config import SCHEMA_FIELDS
 # GUI CLASS
 # ----------------------------
 class BarcodeApp(QWidget):
-    def __init__(self, db=None, *args, **kwargs):
+    def __init__(self, db=None, whitelist=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.db = db
         self.current_barcode = None
         self.current_table = None
         self.session_barcodes = set()  # 本次运行的条码集合
+        self.whitelist = whitelist
 
         # ----------------------
         # 窗口 & 总布局
@@ -85,10 +86,20 @@ class BarcodeApp(QWidget):
         self.overview_table = QTableWidget()
         self.overview_table.setColumnCount(5)
         self.overview_table.setHorizontalHeaderLabels([
-            "Barcode", "表1_模组拆解状态", "表2_CMM测试状态", "表3_模组配对状态", "总状态"
+                        "Barcode",
+            "Table1\nModule\nvisual status",
+            "Table2\nCMM\ntest status",
+            "Table3\nModule\nsampling status",
+            "Overall\nstatus"
         ])
+
+        self.overview_table.setWordWrap(True)  # 启用单元格文字换行
+        self.overview_table.setAlternatingRowColors(True)  # 可选：隔行换色更易读
+        self.overview_table.verticalHeader().setVisible(False)  # 隐藏行号
+
         # 按照扫码时间降序排列overview栏
         self.barcode_scan_time = {}  # {barcode: datetime对象}
+        self.overview_table.cellClicked.connect(self.overview_cell_clicked)
 
         # 列宽控制：前 4 列可调节，最后一列自适应填满
         header = self.overview_table.horizontalHeader()
@@ -223,7 +234,7 @@ class BarcodeApp(QWidget):
 
         # 校验条码长度
         if len(code) != 24:
-            QMessageBox.warning(self, "无效条码", "条码必须为 24 位！")
+            QMessageBox.warning(self, "无效条码-Invalid barcode","条码必须为 24 位！\nBarcode must be 24 digits!")
             self.barcode_edit.clear()
             return
 
@@ -252,7 +263,7 @@ class BarcodeApp(QWidget):
 
         # 如果该条码已全部完成，则提示
         if not self.current_table:
-            QMessageBox.information(self, "提示", f"条码 {code} 的所有表单均已完成。")
+            QMessageBox.information(self, "提示-Note", f"条码 {code} 的所有表单均已完成 \nBarcode\n{code} \nall tables already finished")
             self.form_table.setRowCount(0)
             self.submit_btn.setEnabled(False)
             return
@@ -263,116 +274,147 @@ class BarcodeApp(QWidget):
 
     def load_form(self):
         self.form_table.clear()
+
         if not self.current_table:
-            self.form_table.setRowCount(0); self.form_table.setColumnCount(0)
-            self.detail_text.setText(f"{self.current_barcode} 已完成所有表单")
             self.submit_btn.setEnabled(False)
             return
-        self.submit_btn.setEnabled(True)
+
         fields = SCHEMA_FIELDS[self.current_table]
-        self.form_table.setRowCount(len(fields)); self.form_table.setColumnCount(2)
-        self.form_table.setHorizontalHeaderLabels(["检查项目","状态 (OK / NG)"])
+        self.form_table.setRowCount(len(fields))
+        self.form_table.setColumnCount(2)
+        self.form_table.setHorizontalHeaderLabels(["检查项目-Inspection content", "状态-Status"])
 
-        for i, (name, _) in enumerate(fields):
-            label = self.get_label(self.current_table, name)
-            self.form_table.setItem(i, 0, QTableWidgetItem(label))
+        for row_idx, (name, widget_type) in enumerate(fields):
 
+            # 左列 label
+            label = QTableWidgetItem(self.get_label(self.current_table, name))
+            label.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            self.form_table.setItem(row_idx, 0, label)
+
+            # ---------- timestamp 固定不可改 ----------
             if name == "timestamp":
-                # 自动时间
                 item = QTableWidgetItem(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                 item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
-                self.form_table.setItem(i, 1, item)
+                self.form_table.setItem(row_idx, 1, item)
+                continue
 
-            elif name == "quality_personnel":
-                # 用 QLineEdit + 自动补全功能
+            # ---------- quality_personnel 使用 lineedit ----------
+            if name == "quality_personnel":
                 edit = QLineEdit()
-                edit.setPlaceholderText("请输入工号")
-
-                # 从数据库加载历史工号
                 history = self.db.fetch_quality_personnel_history()
-
                 if history:
                     completer = QCompleter(history)
-                    completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)  # 不区分大小写
-                    completer.setFilterMode(Qt.MatchFlag.MatchContains)  # 支持模糊匹配
+                    completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+                    completer.setFilterMode(Qt.MatchFlag.MatchContains)
                     edit.setCompleter(completer)
-                self.form_table.setCellWidget(i, 1, edit)
+                self.form_table.setCellWidget(row_idx, 1, edit)
+                continue
+            DEFAULT_OPTIONS = {
+                "default": ["OK", "NG"]
+            }
 
-            else:
-                # OK/NG 下拉框
-                combo = QComboBox()
-                combo.addItems(["OK", "NG"])
-                self.form_table.setCellWidget(i, 1, combo)
+            # ---------- 其他字段统一使用 QComboBox ----------
+            combo = QComboBox()
+            combo.addItems(DEFAULT_OPTIONS["default"])
+            self.form_table.setCellWidget(row_idx, 1, combo)
+        self.submit_btn.setEnabled(True)
         self._apply_table_adjustments()
+
+    def highlight_widget(self, widget, item, color="#ffcccc"):
+        if widget:
+            widget.setStyleSheet(f"background-color: {color};")
+        elif item:
+            item.setBackground(QColor(*[int(c) for c in color.strip("#")[:6].replace("", "").split()]))
+
+    def get_widget_value(self, widget, item):
+        if isinstance(widget, QLineEdit):
+            return widget.text().strip()
+        elif isinstance(widget, QComboBox):
+            return widget.currentText().strip()
+        elif item:
+            return item.text().strip()
+        return ""
 
     def submit_form(self):
         if not self.current_table or not self.current_barcode:
-            QMessageBox.warning(self, "错误", "当前没有可提交的表格")
+            QMessageBox.warning(self, "错误-Erro", "当前没有可提交的表格\nNo forms available for submission")
             return
 
-        # 校验表单完整性
         missing_fields = []
         data = {}
 
-        for i, (name, _) in enumerate(SCHEMA_FIELDS[self.current_table]):
+        for i, (name, widget_type) in enumerate(SCHEMA_FIELDS[self.current_table]):
+            item = self.form_table.item(i, 1)
+            widget = self.form_table.cellWidget(i, 1)
+
+            # ---------- timestamp ----------
             if name == "timestamp":
-                data[name] = self.form_table.item(i, 1).text()
+                data[name] = item.text() if item else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 continue
 
-            widget = self.form_table.cellWidget(i, 1)
+            # ---------- quality_personnel ----------
+            if name == "quality_personnel":
+                emp_id = widget.text().strip() if isinstance(widget, QLineEdit) else ""
+                if not emp_id:
+                    missing_fields.append(self.get_label(self.current_table, name))
+                    self.highlight_widget(widget, item, "#ffcccc")
+                    continue
+
+                if emp_id not in self.whitelist:
+                    QMessageBox.warning(
+                        self,
+                        "未授权-Unauthorized",
+                        "❌您的工号未授权，无法使用此系统 \nYour employee ID is not on the list and cannot access this system"
+                    )
+                    self.highlight_widget(widget, item, "#ffcccc")
+                    return
+
+                data[name] = emp_id
+                self.highlight_widget(widget, item, None)
+                continue
+
+            # ---------- 其他字段（统一下拉框处理） ----------
             value = ""
             if isinstance(widget, QComboBox):
                 value = widget.currentText().strip()
             elif isinstance(widget, QLineEdit):
                 value = widget.text().strip()
-            elif self.form_table.item(i, 1):
-                value = self.form_table.item(i, 1).text().strip()
+            elif item:
+                value = item.text().strip()
 
-            # 记录数据
             data[name] = value
-
-            # 检查是否为空
             if not value:
                 missing_fields.append(self.get_label(self.current_table, name))
-
-                # 高亮显示未填写的单元格
-                if widget:
-                    widget.setStyleSheet("background-color: #ffcccc;")
-                else:
-                    item = self.form_table.item(i, 1)
-                    if item:
-                        item.setBackground(QColor(255, 200, 200))
+                self.highlight_widget(widget, item, "#ffcccc")
             else:
-                # 恢复正常背景色
-                if widget:
-                    widget.setStyleSheet("")
-                else:
-                    item = self.form_table.item(i, 1)
-                    if item:
-                        item.setBackground(QColor(255, 255, 255))
+                self.highlight_widget(widget, item, None)
 
-        # 如果有未填项，则提醒用户并终止提交
         if missing_fields:
             QMessageBox.warning(
                 self,
-                "未填写提示",
-                "以下项目未填写，请补全后再提交：\n\n" + "\n".join(missing_fields)
+                "未填写提示-Required fields not filled out",
+                "❌以下项目未填写，请补全后再提交：\nThe following items are missing. Please complete them before submitting.\n\n" + "\n".join(missing_fields)
             )
+
             return
 
-        # 通过校验后再执行原有逻辑
-        self.db.insert_table(self.current_table, self.current_barcode, data)
-        if self.current_table == "table_1_data":
-            self.db.update_status(self.current_barcode, s1=1)
-        elif self.current_table == "table_2_data":
-            self.db.update_status(self.current_barcode, s2=1)
-        elif self.current_table == "table_3_data":
-            self.db.update_status(self.current_barcode, s3=1)
+        # ---------- 写入数据库 ----------
+        self.db.insert_or_update_table(self.current_table, self.current_barcode, data)
 
-        QMessageBox.information(self, "提交成功", f"{self.get_table_name(self.current_table)} 已完成")
+        # ---------- 更新表完成状态 ----------
+        s1 = 1 if self.is_table_completed("table_1_data", self.current_barcode) else 0
+        s2 = 1 if self.is_table_completed("table_2_data", self.current_barcode) else 0
+        s3 = 1 if self.is_table_completed("table_3_data", self.current_barcode) else 0
+        self.db.update_status(self.current_barcode, s1=s1, s2=s2, s3=s3)
+
+        QMessageBox.information(
+            self, "提交成功-Successful submission", f"{self.get_table_name(self.current_table)} 已完成 \n{self.get_table_name(self.current_table)} Done"
+        )
+
+        # ---------- 刷新 Overview ----------
         self.load_overview()
 
-        # 清空当前条码，让按钮恢复可用状态
+        # ---------- 清空当前表单 ----------
         self.current_barcode = None
         self.current_table = None
         self.barcode_edit.clear()
@@ -382,16 +424,15 @@ class BarcodeApp(QWidget):
         self.detail_text.clear()
 
     def load_overview(self):
-        """根据数据库中实际的子表数据实时计算 Overview 状态"""
+        """根据数据库真实填写情况计算 Overview 状态（字段完整度判断 + 新颜色逻辑）"""
         try:
             if not self.session_barcodes:
                 self.overview_table.setRowCount(0)
                 return
 
-            # 清空表格
             self.overview_table.setRowCount(0)
 
-            # 按扫码时间降序排序（最近扫描的在最上方）
+            # 按扫码时间排序
             barcodes_sorted = sorted(
                 self.session_barcodes,
                 key=lambda b: self.barcode_scan_time.get(b, datetime.min),
@@ -399,60 +440,80 @@ class BarcodeApp(QWidget):
             )
 
             for barcode in barcodes_sorted:
-                # 获取三个子表数据
+
+                # --------- 预读取子表数据 ---------
                 t1_data = self.db.fetch_table("table_1_data", barcode) or {}
                 t2_data = self.db.fetch_table("table_2_data", barcode) or {}
                 t3_data = self.db.fetch_table("table_3_data", barcode) or {}
 
-                # 判断子表是否存在数据
-                s1 = 1 if t1_data else 0
-                s2 = 1 if t2_data else 0
-                s3 = 1 if t3_data else 0
+                # --------- 完成状态判断 ---------
+                t1_done = self.is_table_completed("table_1_data", barcode)
+                t2_done = self.is_table_completed("table_2_data", barcode)
+                t3_done = self.is_table_completed("table_3_data", barcode)
 
-                # 计算总状态
-                total_status = "未完成"
-                if s1 and s2 and s3:
-                    all_vals = list(t1_data.values()) + list(t2_data.values()) + list(t3_data.values())
-                    if any(str(v).strip().upper() == "NG" for v in all_vals):
-                        total_status = "NG"
-                    else:
-                        total_status = "OK"
+                # --------- NG 判断函数 ---------
+                def is_ng(data):
+                    return any(str(v).strip().upper() == "NG" for v in data.values())
 
-                # 写入表格
+                # --------- 写入 overview ---------
                 row = self.overview_table.rowCount()
                 self.overview_table.insertRow(row)
 
-                # 条码
+                # 条码列
                 barcode_item = QTableWidgetItem(barcode)
                 barcode_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
                 self.overview_table.setItem(row, 0, barcode_item)
 
-                # 三个子表状态
-                for j, val in enumerate([s1, s2, s3]):
-                    text = "已完成" if val else "未完成"
-                    color = QColor(0, 200, 83) if val else QColor(255, 77, 77)
+                # --------- 子表状态列处理 ---------
+                table_datas = [t1_data, t2_data, t3_data]
+                table_done_list = [t1_done, t2_done, t3_done]
+
+                for col_index, (done, data) in enumerate(zip(table_done_list, table_datas), start=1):
+
+                    if not done:  # 未完成
+                        text = "Not Done"
+                        bg = QColor(180, 180, 180)  # 灰色
+                    else:
+                        # 完成 → 判断是否 NG
+                        if is_ng(data):
+                            text = "NG"
+                            bg = QColor(231, 76, 60)  # 红色
+                        else:
+                            text = "OK"
+                            bg = QColor(46, 204, 113)  # 绿色
+
                     item = QTableWidgetItem(text)
-                    item.setBackground(QBrush(color))
+                    item.setBackground(QBrush(bg))
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
-                    self.overview_table.setItem(row, j + 1, item)
+                    self.overview_table.setItem(row, col_index, item)
 
-                # 总状态
-                total_item = QTableWidgetItem(total_status)
-                total_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if total_status == "OK":
-                    c = QColor(46, 204, 113)
-                elif total_status == "NG":
-                    c = QColor(231, 76, 60)
+                # --------- 最终状态列 ---------
+                all_done = t1_done and t2_done and t3_done
+
+                if not all_done:
+                    final_text = "Not Finish"
+                    final_bg = QColor(180, 180, 180)  # 灰色
                 else:
-                    c = QColor(200, 200, 200)
-                total_item.setBackground(QBrush(c))
-                total_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
-                self.overview_table.setItem(row, 4, total_item)
+                    # 所有表都完成 → 判断是否 NG
+                    all_ng = is_ng(t1_data) or is_ng(t2_data) or is_ng(t3_data)
+                    if all_ng:
+                        final_text = "NG"
+                        final_bg = QColor(231, 76, 60)  # 红色
+                    else:
+                        final_text = "OK"
+                        final_bg = QColor(46, 204, 113)  # 绿色
+
+                final_item = QTableWidgetItem(final_text)
+                final_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                final_item.setBackground(QBrush(final_bg))
+                final_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+                self.overview_table.setItem(row, 4, final_item)
 
             self._apply_table_adjustments()
+
         except Exception as e:
-            QMessageBox.critical(self, "刷新失败", f"加载 Overview 时出错：\n{str(e)}")
+            QMessageBox.critical(self, "刷新失败-Refresh erro", f"加载 Overview 时出错：\n{str(e)} \n Erro happened while loading Overview: \n{str(e)}")
 
     # ---------- Detail 显示带颜色 ----------
     def show_detail(self,row,col):
@@ -463,7 +524,7 @@ class BarcodeApp(QWidget):
             html+=f"<h3>{self.get_table_name(tbl)}</h3>"
             data=self.db.fetch_table(tbl,barcode)
             if not data:
-                html+="<p><i>未填写</i></p>"
+                html+="<p><i>未填写-Not done</i></p>"
             else:
                 html+="<table border='0' cellspacing='3' cellpadding='3'>"
                 for k,v in data.items():
@@ -483,13 +544,13 @@ class BarcodeApp(QWidget):
         try:
             row_count = self.overview_table.rowCount()
             if row_count == 0:
-                QMessageBox.warning(self, "无数据", "当前表格中没有可导出的数据！")
+                QMessageBox.warning(self, "无数据-No data", "当前表格中没有可导出的数据！\n There is no exportable data in the current table!")
                 return
 
             # 选择保存路径
             default_name = f"current_detail_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
             file_path, _ = QFileDialog.getSaveFileName(
-                self, "选择保存位置", default_name, "Excel 文件 (*.xlsx)"
+                self, "选择保存位置-Choose file saved path", default_name, "Excel (*.xlsx)"
             )
             if not file_path:
                 return
@@ -500,7 +561,7 @@ class BarcodeApp(QWidget):
             # 从数据库获取 overview 数据
             all_rows = self.db.fetch_overview()
             rows = [r for r in all_rows if r[0] in barcodes]
-            merged_df = pd.DataFrame(rows, columns=["barcode", "表1状态", "表2状态", "表3状态", "总状态"])
+            merged_df = pd.DataFrame(rows, columns=["barcode", "Table1_Module visual status", "Table2_CMM test status", "Table3_Module samping status", "Overall status"])
 
             # 合并所有分表
             for tbl, fields in SCHEMA_FIELDS.items():
@@ -528,30 +589,30 @@ class BarcodeApp(QWidget):
                     for col in range(2, merged_df.shape[1] + 1):
                         cell = ws.cell(row=row, column=col)
                         val = str(cell.value).upper() if cell.value else ""
-                        if val in ["NG", "未完成"]:
+                        if val in ["NG", "未完成-Not done"]:
                             cell.fill = red_fill
-                        elif val in ["OK", "已完成"]:
+                        elif val in ["OK", "已完成-Done"]:
                             cell.fill = green_fill
                         elif not val:
                             cell.fill = gray_fill
 
-            QMessageBox.information(self, "导出成功", f"已导出当前表格及详细数据：\n{file_path}")
+            QMessageBox.information(self, "导出成功-Export successful", f"已导出当前表格及详细数据：\n{file_path} \n The current table and detailed data have been exported \n{file_path} \n")
 
         except Exception as e:
-            QMessageBox.critical(self, "导出失败", f"导出 Excel 时发生错误：\n{str(e)}")
+            QMessageBox.critical(self, "导出失败-Export failed", f"导出 Excel 时发生错误：\n{str(e)} \n An error occurred while exporting to Excel \n{str(e)}")
 
     # ---------- Label 辅助 ----------
     def get_table_name(self,tbl):
         return {
-            "table_1_data":"表1_模组拆解状态",
-            "table_2_data":"表2_CMM测试状态",
-            "table_3_data":"表3_模组配对状态"
+            "table_1_data":"Table1_Module visual status",
+            "table_2_data":"Table2_CMM test status",
+            "table_3_data":"Table3_Module samping status"
         }.get(tbl,tbl)
 
     def get_label(self, tbl, field):
         labels = {
             "table_1_data": {
-                "timestamp": "时间",
+                "timestamp": "时间-Time",
                 "quality_personnel": "品质人员-Quality",
                 "protective_cover_installation_status": "正负极保护盖已安装-Positive and negative protective covers installed",
                 "foreign_matters_status": "模组上保护盖无破损、无脏污-No damage or foreign matters on the module top cover",
@@ -568,13 +629,13 @@ class BarcodeApp(QWidget):
                 "module_code_status": "模组码无破损脏污-No damage or dirty on module code"
             },
             "table_2_data": {
-                "timestamp": "时间",
+                "timestamp": "时间-Time",
                 "quality_personnel": "品质人员-Quality",
                 "module_CMMtest_status": "模组全尺寸测量-Module CMM test"
             },
             "table_3_data": {
                 "module_CMMtest_status": "模组全尺寸测量-Module CMM test",
-                "timestamp": "时间",
+                "timestamp": "时间-Time",
                 "quality_personnel": "品质人员-Quality",
                 "sampling_data_status":"采样数据状态-Sampling data status",
                 "voltage_status_consistent": "模组电压区间/充电未充电一致-Module voltage range/distinction between charging and uncharging",
@@ -585,3 +646,155 @@ class BarcodeApp(QWidget):
             }
         }
         return labels.get(tbl, {}).get(field, field)
+
+    def edit_barcode_from_table(self, row, col):
+        barcode_item = self.overview_table.item(row, 0)
+        if not barcode_item:
+            return
+
+        barcode = barcode_item.text()
+
+        # 判断属于哪个表（table_1 → table_2 → table_3）
+        for tbl in SCHEMA_FIELDS:
+            if self.db.fetch_table(tbl, barcode):
+                self.open_form(tbl, barcode)
+                return
+
+        # 默认新建进入 table_1
+        self.open_form("table_1_data", barcode)
+
+    def overview_cell_clicked(self, row, col):
+        table_map = {1: "table_1_data", 2: "table_2_data", 3: "table_3_data"}
+
+        barcode = self.overview_table.item(row, 0).text()
+
+        if col in table_map:
+            self.open_form(table_map[col], barcode)
+        else:
+            self.show_detail(row, col)
+
+    def load_form_for_edit(self, table, barcode):
+        """
+        根据条码和表名加载表单，支持修改并重新提交
+        """
+        data = self.db.fetch_table(table, barcode)
+        if not data:
+            QMessageBox.information(self, "提示-Note", f"{self.get_table_name(table)} 暂无数据可编辑 \n{self.get_table_name(table)} No data available for editing.")
+            return
+
+        self.current_table = table
+        self.current_barcode = barcode
+
+        self.form_table.setRowCount(len(SCHEMA_FIELDS[table]))
+
+        for i, (name, widget_type) in enumerate(SCHEMA_FIELDS[table]):
+            # Label
+            label_item = QTableWidgetItem(self.get_label(table, name))
+            label_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            self.form_table.setItem(i, 0, label_item)
+
+            # 值
+            value = str(data.get(name, ""))
+
+            if widget_type == "lineedit":
+                line_edit = QLineEdit()
+                line_edit.setText(value)
+                self.form_table.setCellWidget(i, 1, line_edit)
+            elif widget_type == "combobox":
+                combo = QComboBox()
+                combo.addItems(self.get_combobox_options(name))
+                if value:
+                    idx = combo.findText(value)
+                    if idx >= 0:
+                        combo.setCurrentIndex(idx)
+                self.form_table.setCellWidget(i, 1, combo)
+            else:
+                item = QTableWidgetItem(value)
+                self.form_table.setItem(i, 1, item)
+
+        self.submit_btn.setEnabled(True)
+
+    def open_form(self, table, barcode):
+        """统一入口：判断权限 → 创建 UI → 填充数据"""
+
+        # 权限检查：是否已完成？
+        if not self.check_edit_permission(table, barcode):
+            QMessageBox.warning(self, "不可编辑-Not editable",
+                                f"{self.get_table_name(table)} 尚未完成，不能编辑！\n{self.get_table_name(table)} is not yet done and cannot be edited!")
+            return
+
+        # ---- 合法才允许编辑 ----
+        self.current_table = table
+        self.current_barcode = barcode
+
+        data = self.db.fetch_table(table, barcode) or {}
+
+        self.load_form()
+        self.fill_form(data)
+
+        self.submit_btn.setEnabled(True)
+        self.barcode_edit.setText(barcode)
+
+    def fill_form(self, data):
+        fields = SCHEMA_FIELDS[self.current_table]
+
+        for row_idx, (name, _) in enumerate(fields):
+            value = str(data.get(name, ""))
+
+            widget = self.form_table.cellWidget(row_idx, 1)
+            item = self.form_table.item(row_idx, 1)
+
+            if name == "timestamp":
+                continue
+
+            if widget:
+                if isinstance(widget, QLineEdit):
+                    widget.setText(value)
+                elif isinstance(widget, QComboBox):
+                    idx = widget.findText(value)
+                    if idx >= 0:
+                        widget.setCurrentIndex(idx)
+            elif item:
+                item.setText(value)
+
+    def is_table_completed(self, table, barcode):
+        """判断指定表是否已完成（所有字段非空）"""
+        data = self.db.fetch_table(table, barcode)
+        if not data:
+            return False
+
+        for field, _ in SCHEMA_FIELDS[table]:
+            if data.get(field, "") == "":
+                return False
+
+        return True
+
+    def check_edit_permission(self, table, barcode):
+        """已完成表单可修改；未完成表单不可修改"""
+        return self.is_table_completed(table, barcode)
+
+    def get_editable_tables(self, barcode):
+        """根据填写进度返回当前条码允许编辑的表清单"""
+
+        t1 = is_table_1_done = self.is_table_completed("table_1_data", barcode)
+        t2 = is_table_2_done = self.is_table_completed("table_2_data", barcode)
+        t3 = is_table_3_done = self.is_table_completed("table_3_data", barcode)
+
+        # 规则：
+        # 表3完成 → 可编辑 表1 表2
+        if t3:
+            return ["table_1_data", "table_2_data"]
+
+        # 表2完成 → 可编辑 表1
+        if t2:
+            return ["table_1_data"]
+
+        # 表1未完成 → 所有表可编辑
+        return ["table_1_data", "table_2_data", "table_3_data"]
+
+
+
+
+
+
+

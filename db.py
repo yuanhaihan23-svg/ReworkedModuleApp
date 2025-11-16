@@ -76,7 +76,6 @@ def resource_path(relative_path: str):
 
 # ---------- 主类 ----------
 class DB:
-    """仅使用 MySQL，不回退至 SQLite"""
 
     def __init__(self):
         print("🚀 初始化远程数据库连接中...")
@@ -258,3 +257,22 @@ class DB:
             rows = cur.fetchall()
             personnel.update([row[0] for row in rows if row[0]])
         return list(personnel)
+
+    def insert_or_update_table(self, table, barcode, data):
+        """
+        如果条码已存在则更新，否则插入。
+        """
+        placeholders = ", ".join(f"`{k}`=%s" for k in data)
+        columns = ", ".join(f"`{k}`" for k in data)
+        values_placeholders = ", ".join(["%s"] * len(data))
+
+        sql = f"""
+        INSERT INTO {table} (`barcode`, {columns})
+        VALUES (%s, {values_placeholders})
+        ON DUPLICATE KEY UPDATE {placeholders}
+        """
+        values = [barcode] + list(data.values()) + list(data.values())
+
+        with self.conn.cursor() as cursor:
+            cursor.execute(sql, values)
+            self.conn.commit()
