@@ -73,9 +73,6 @@ def load_whitelist():
     whitelist = {item.strip() for item in wl_str.split(",") if item.strip()}
     return whitelist
 
-
-
-
 # -------------------------------
 # 主程序入口
 # -------------------------------

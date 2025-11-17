@@ -103,6 +103,7 @@ class DB:
             "password": config.get("mysql", "password", fallback=""),
             "database": config.get("mysql", "database", fallback="test"),
             "charset": config.get("mysql", "charset", fallback="utf8mb4"),
+            "autocommit": True
         }
         print(f"✅ Configuration file loaded: {config_path}")
         return mysql_cfg
@@ -214,10 +215,19 @@ class DB:
     def fetch_table(self, table, barcode):
         if not self.connected:
             return {}
+
         fields = [n for n, _ in SCHEMA_FIELDS[table]]
-        sql = f"SELECT {', '.join(fields)} FROM {table} WHERE barcode=%s;"
+        sql = f"""
+            SELECT {', '.join(fields)}
+            FROM {table}
+            WHERE barcode=%s
+            ORDER BY id DESC
+            LIMIT 1;
+        """
+
         cur = self._execute(sql, (barcode,))
-        row = cur.fetchone()
+        row = cur.fetchone() if cur else None
+
         return dict(zip(fields, row)) if row else {}
 
     def fetch_overview(self):

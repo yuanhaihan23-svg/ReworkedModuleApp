@@ -425,6 +425,8 @@ class BarcodeApp(QWidget):
 
     def load_overview(self):
         """根据数据库真实填写情况计算 Overview 状态（字段完整度判断 + 新颜色逻辑）"""
+        self.db._commit()
+
         try:
             if not self.session_barcodes:
                 self.overview_table.setRowCount(0)
