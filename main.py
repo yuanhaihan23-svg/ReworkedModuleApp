@@ -2,9 +2,7 @@ import sys
 import os
 import tempfile
 import atexit
-from configparser import ConfigParser
 from PyQt6.QtWidgets import QApplication, QMessageBox
-from macholib.ptypes import p_int
 import configparser
 
 from gui import BarcodeApp  # 你的 GUI
@@ -22,7 +20,7 @@ def check_single_instance():
             if pid != os.getpid():
                 try:
                     os.kill(pid, 0)
-                    print("⚠️ 应用已在运行，禁止重复启动。")
+                    print("⚠️ The application is already running. Do not restart it")
                     sys.exit(0)
                 except OSError:
                     pass
@@ -70,7 +68,6 @@ def load_whitelist():
     wl_str = config.get("auth", "whitelist", fallback=None)
 
     if wl_str is None:
-        print("⚠️ 未找到 [auth] whitelist 配置，返回空集合")
         return set()
 
     whitelist = {item.strip() for item in wl_str.split(",") if item.strip()}
@@ -94,8 +91,8 @@ def main():
         if not db.is_connected():
             QMessageBox.critical(
                 None,
-                "数据库连接失败",
-                "❌ 无法连接到数据库，请检查网络或 config.ini 配置",
+                "Database connection failed",
+                "❌ Unable to connect to the database. Please check your network or config.ini configuration",
             )
             sys.exit(1)
         whitelist = load_whitelist()
@@ -109,8 +106,8 @@ def main():
         import traceback
 
         msg = QMessageBox()
-        msg.setWindowTitle("程序异常")
-        msg.setText("程序发生错误:\n" + str(e))
+        msg.setWindowTitle("Program exception")
+        msg.setText("An error occurred in the program:\n" + str(e))
         msg.setDetailedText(traceback.format_exc())
         msg.setIcon(QMessageBox.Icon.Critical)
         msg.exec()

@@ -55,7 +55,7 @@ def resource_path(relative_path: str):
 
     # 自动生成默认配置文件
     if not os.path.exists(path) and relative_path.lower().endswith(".ini"):
-        print(f"⚠️ 未找到配置文件 {relative_path}，已自动创建默认 config.ini")
+        print(f"⚠️ Configuration file {relative_path} not found; a default config.ini has been automatically created.")
         config = configparser.ConfigParser()
         config["database"] = {"use_mysql": "True"}
         config["mysql"] = {
@@ -70,7 +70,7 @@ def resource_path(relative_path: str):
             with open(path, "w", encoding="utf-8") as f:
                 config.write(f)
         except Exception as e:
-            print(f"⚠️ 写入配置文件失败: {e}")
+            print(f"⚠️ Failed to write configuration file: {e}")
     return path
 
 
@@ -78,7 +78,7 @@ def resource_path(relative_path: str):
 class DB:
 
     def __init__(self):
-        print("🚀 初始化远程数据库连接中...")
+        print("🚀 Initializing remote database connection...")
         self.conn = None
         self.connected = False
         self.config = self._load_config()
@@ -104,21 +104,21 @@ class DB:
             "database": config.get("mysql", "database", fallback="test"),
             "charset": config.get("mysql", "charset", fallback="utf8mb4"),
         }
-        print(f"✅ 已加载配置文件: {config_path}")
+        print(f"✅ Configuration file loaded: {config_path}")
         return mysql_cfg
 
     # ---------- MySQL ----------
     def _connect_mysql(self):
         try:
             if not importlib.util.find_spec("pymysql"):
-                raise ImportError("缺少 pymysql 模块，请先安装：pip install pymysql")
+                raise ImportError("The pymysql module is missing. Please install it first: pip install pymysql")
 
             self.conn = pymysql.connect(**self.config)
             self.connected = True
-            print(f"✅ 成功连接 MySQL 数据库：{self.config['host']}:{self.config['port']}")
+            print(f"✅ Successfully connected to the MySQL database: {self.config['host']}:{self.config['port']}")
         except Exception as e:
             self.connected = False
-            print("❌ 无法连接 MySQL 数据库：", e)
+            print("❌ Unable to connect to MySQL database:", e)
 
     def is_connected(self):
         """返回连接状态"""
@@ -127,14 +127,14 @@ class DB:
     # ---------- SQL 执行 ----------
     def _execute(self, sql, params=None):
         if not self.connected:
-            print("⚠️ 数据库未连接，无法执行 SQL。")
+            print("⚠️ Database not connected, unable to execute SQL.")
             return None
         try:
             cur = self.conn.cursor()
             cur.execute(sql, params or ())
             return cur
         except Exception as e:
-            print(f"⚠️ SQL 执行失败：{e}\nSQL: {sql}")
+            print(f"⚠️ SQL execution failed: {e}\nSQL: {sql}")
             return None
 
     def _commit(self):
@@ -142,7 +142,7 @@ class DB:
             try:
                 self.conn.commit()
             except Exception as e:
-                print("⚠️ 提交失败：", e)
+                print("⚠️ Submission failed:", e)
 
     # ---------- 表初始化 ----------
     def _ensure_tables(self):
@@ -164,7 +164,6 @@ class DB:
             self._execute(sql)
 
         self._commit()
-        print("🧱 数据表检查/创建完成")
 
     # ---------- 业务逻辑 ----------
     def ensure_barcode(self, barcode):
@@ -236,7 +235,7 @@ class DB:
 
     def _calc_total_status(self, barcode, s1, s2, s3):
         if not all([s1, s2, s3]):
-            return "未完成"
+            return "Not done"
         for tbl in SCHEMA_FIELDS:
             data = self.fetch_table(tbl, barcode)
             for v in data.values():
@@ -248,7 +247,7 @@ class DB:
         if self.conn:
             self.conn.close()
             self.connected = False
-            print("🔌 数据库连接已关闭。")
+            print("🔌 Database connection closed")
 
     def fetch_quality_personnel_history(self):
         personnel = set()

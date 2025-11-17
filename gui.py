@@ -234,7 +234,7 @@ class BarcodeApp(QWidget):
 
         # 校验条码长度
         if len(code) != 24:
-            QMessageBox.warning(self, "无效条码-Invalid barcode","条码必须为 24 位！\nBarcode must be 24 digits!")
+            QMessageBox.warning(self, "Invalid barcode","Barcode must be 24 digits!")
             self.barcode_edit.clear()
             return
 
@@ -263,7 +263,7 @@ class BarcodeApp(QWidget):
 
         # 如果该条码已全部完成，则提示
         if not self.current_table:
-            QMessageBox.information(self, "提示-Note", f"条码 {code} 的所有表单均已完成 \nBarcode\n{code} \nall tables already finished")
+            QMessageBox.information(self, "Note", f"Barcode\n{code} \nall tables already finished")
             self.form_table.setRowCount(0)
             self.submit_btn.setEnabled(False)
             return
@@ -282,7 +282,7 @@ class BarcodeApp(QWidget):
         fields = SCHEMA_FIELDS[self.current_table]
         self.form_table.setRowCount(len(fields))
         self.form_table.setColumnCount(2)
-        self.form_table.setHorizontalHeaderLabels(["检查项目-Inspection content", "状态-Status"])
+        self.form_table.setHorizontalHeaderLabels(["Inspection content", "Status"])
 
         for row_idx, (name, widget_type) in enumerate(fields):
 
@@ -337,7 +337,7 @@ class BarcodeApp(QWidget):
 
     def submit_form(self):
         if not self.current_table or not self.current_barcode:
-            QMessageBox.warning(self, "错误-Erro", "当前没有可提交的表格\nNo forms available for submission")
+            QMessageBox.warning(self, "Erro", "No forms available for submission")
             return
 
         missing_fields = []
@@ -363,8 +363,8 @@ class BarcodeApp(QWidget):
                 if emp_id not in self.whitelist:
                     QMessageBox.warning(
                         self,
-                        "未授权-Unauthorized",
-                        "❌您的工号未授权，无法使用此系统 \nYour employee ID is not on the list and cannot access this system"
+                        "Unauthorized",
+                        "❌Your employee ID is not on the list and cannot access this system"
                     )
                     self.highlight_widget(widget, item, "#ffcccc")
                     return
@@ -392,8 +392,8 @@ class BarcodeApp(QWidget):
         if missing_fields:
             QMessageBox.warning(
                 self,
-                "未填写提示-Required fields not filled out",
-                "❌以下项目未填写，请补全后再提交：\nThe following items are missing. Please complete them before submitting.\n\n" + "\n".join(missing_fields)
+                "Required fields not filled out",
+                "❌The following items are missing. Please complete them before submitting.\n\n" + "\n".join(missing_fields)
             )
 
             return
@@ -408,7 +408,7 @@ class BarcodeApp(QWidget):
         self.db.update_status(self.current_barcode, s1=s1, s2=s2, s3=s3)
 
         QMessageBox.information(
-            self, "提交成功-Successful submission", f"{self.get_table_name(self.current_table)} 已完成 \n{self.get_table_name(self.current_table)} Done"
+            self, "Successful submission", f"{self.get_table_name(self.current_table)} Done"
         )
 
         # ---------- 刷新 Overview ----------
@@ -513,7 +513,7 @@ class BarcodeApp(QWidget):
             self._apply_table_adjustments()
 
         except Exception as e:
-            QMessageBox.critical(self, "刷新失败-Refresh erro", f"加载 Overview 时出错：\n{str(e)} \n Erro happened while loading Overview: \n{str(e)}")
+            QMessageBox.critical(self, "Refresh erro", f"Erro happened while loading Overview: \n{str(e)}")
 
     # ---------- Detail 显示带颜色 ----------
     def show_detail(self,row,col):
@@ -524,7 +524,7 @@ class BarcodeApp(QWidget):
             html+=f"<h3>{self.get_table_name(tbl)}</h3>"
             data=self.db.fetch_table(tbl,barcode)
             if not data:
-                html+="<p><i>未填写-Not done</i></p>"
+                html+="<p><i>Not done</i></p>"
             else:
                 html+="<table border='0' cellspacing='3' cellpadding='3'>"
                 for k,v in data.items():
@@ -544,13 +544,13 @@ class BarcodeApp(QWidget):
         try:
             row_count = self.overview_table.rowCount()
             if row_count == 0:
-                QMessageBox.warning(self, "无数据-No data", "当前表格中没有可导出的数据！\n There is no exportable data in the current table!")
+                QMessageBox.warning(self, "No data", "There is no exportable data in the current table!")
                 return
 
             # 选择保存路径
             default_name = f"current_detail_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
             file_path, _ = QFileDialog.getSaveFileName(
-                self, "选择保存位置-Choose file saved path", default_name, "Excel (*.xlsx)"
+                self, "Choose file saved path", default_name, "Excel (*.xlsx)"
             )
             if not file_path:
                 return
@@ -589,17 +589,16 @@ class BarcodeApp(QWidget):
                     for col in range(2, merged_df.shape[1] + 1):
                         cell = ws.cell(row=row, column=col)
                         val = str(cell.value).upper() if cell.value else ""
-                        if val in ["NG", "未完成-Not done"]:
+                        if val in ["NG", "Not done"]:
                             cell.fill = red_fill
-                        elif val in ["OK", "已完成-Done"]:
+                        elif val in ["OK", "Done"]:
                             cell.fill = green_fill
                         elif not val:
                             cell.fill = gray_fill
 
-            QMessageBox.information(self, "导出成功-Export successful", f"已导出当前表格及详细数据：\n{file_path} \n The current table and detailed data have been exported \n{file_path} \n")
+            QMessageBox.information(self,"Export successful",f"The current table and detailed data have been exported:\n{file_path}")
 
-        except Exception as e:
-            QMessageBox.critical(self, "导出失败-Export failed", f"导出 Excel 时发生错误：\n{str(e)} \n An error occurred while exporting to Excel \n{str(e)}")
+        except Exception as e:QMessageBox.critical(self, "Export erro",f"An error occurred while exporting to Excel:\n{str(e)}")
 
     # ---------- Label 辅助 ----------
     def get_table_name(self,tbl):
@@ -679,7 +678,7 @@ class BarcodeApp(QWidget):
         """
         data = self.db.fetch_table(table, barcode)
         if not data:
-            QMessageBox.information(self, "提示-Note", f"{self.get_table_name(table)} 暂无数据可编辑 \n{self.get_table_name(table)} No data available for editing.")
+            QMessageBox.information(self, "Note", f"{self.get_table_name(table)} No data available for editing.")
             return
 
         self.current_table = table
@@ -719,8 +718,8 @@ class BarcodeApp(QWidget):
 
         # 权限检查：是否已完成？
         if not self.check_edit_permission(table, barcode):
-            QMessageBox.warning(self, "不可编辑-Not editable",
-                                f"{self.get_table_name(table)} 尚未完成，不能编辑！\n{self.get_table_name(table)} is not yet done and cannot be edited!")
+            QMessageBox.warning(self, "Not editable",
+                                f"{self.get_table_name(table)} is not yet done and cannot be edited!")
             return
 
         # ---- 合法才允许编辑 ----
