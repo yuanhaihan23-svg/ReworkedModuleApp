@@ -32,28 +32,7 @@ jobs:
 
       - name: Build Windows App (folder mode)
         run: |
-          pyinstaller --onedir --windowed --name MyApp main.py
-
-      - name: Ensure config.ini exists in dist folder
-        shell: pwsh
-        run: |
-          $configPath = "dist\\MyApp\\config.ini"
-          if (!(Test-Path $configPath)) {
-            Write-Host "⚙️  Creating default config.ini..."
-            New-Item -Path $configPath -ItemType File -Force | Out-Null
-            Add-Content -Path $configPath -Value "[database]"
-            Add-Content -Path $configPath -Value "use_mysql = true"
-            Add-Content -Path $configPath -Value ""
-            Add-Content -Path $configPath -Value "[mysql]"
-            Add-Content -Path $configPath -Value "host = 10.100.4.160"
-            Add-Content -Path $configPath -Value "port = 3306"
-            Add-Content -Path $configPath -Value "user = remoteuser"
-            Add-Content -Path $configPath -Value "password = password123456"
-            Add-Content -Path $configPath -Value "database = rework module status"
-            Add-Content -Path $configPath -Value "charset = utf8mb4"
-          } else {
-            Write-Host "✅ Existing config.ini detected — skipping creation."
-          }
+          pyinstaller --onedir --windowed --name MyApp main.py --hidden-import=pymysql --add-data "config.ini;."
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
